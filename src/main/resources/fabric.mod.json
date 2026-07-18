@@ -1,0 +1,28 @@
+{
+	"schemaVersion": 1,
+	"id": "holyinvisible",
+	"version": "${version}",
+	"name": "HolyinvisibleMod",
+	"description": "Показывает объёмный красный нимб над головой невидимых игроков, не раскрывая их силуэт, и не сквозь стены.",
+	"authors": [
+		"1pirs"
+	],
+	"contact": {
+		"homepage": "https://github.com/1pirs/HolyinvisibleMod",
+		"sources": "https://github.com/1pirs/HolyinvisibleMod",
+		"issues": "https://github.com/1pirs/HolyinvisibleMod/issues"
+	},
+	"license": "MIT",
+	"environment": "client",
+	"entrypoints": {
+		"client": [
+			"com.pirs.holyinvisible.client.HolyInvisibleClient"
+		]
+	},
+	"depends": {
+		"fabricloader": ">=0.16.10",
+		"minecraft": "~1.21.4",
+		"java": ">=21",
+		"fabric-api": "*"
+	}
+}
