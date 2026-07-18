@@ -44,7 +44,7 @@ public final class HaloRenderer {
 			return;
 		}
 
-		VertexConsumerProvider.Immediate consumers = context.consumers();
+		VertexConsumerProvider consumers = context.consumers();
 		if (consumers == null) {
 			return;
 		}
@@ -63,8 +63,6 @@ public final class HaloRenderer {
 		float rotation = (time + tickDelta) * 1.5f;
 		float pulse = 0.75f + 0.25f * MathHelper.sin((time + tickDelta) * 0.08f);
 
-		boolean rendered = false;
-
 		for (AbstractClientPlayerEntity player : players) {
 			if (!shouldRenderHalo(player, client)) {
 				continue;
@@ -81,13 +79,12 @@ public final class HaloRenderer {
 			matrices.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_Y.rotationDegrees(rotation));
 
 			drawHalo(matrices, consumers, pulse);
-			rendered = true;
 
 			matrices.pop();
 		}
 
-		if (rendered) {
-			consumers.draw(RenderLayer.getDebugQuads());
+		if (consumers instanceof VertexConsumerProvider.Immediate immediate) {
+			immediate.draw(RenderLayer.getDebugQuads());
 		}
 	}
 
