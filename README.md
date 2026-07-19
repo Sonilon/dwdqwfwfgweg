@@ -1,6 +1,6 @@
-# HolyinvisibleMod (Minecraft 1.21.4)
+# HolyinvisibleMod (Minecraft 1.19.2)
 
-Клиентский мод для **Minecraft Fabric 1.21.4**. Версия для **1.20.1** — в отдельном репозитории/ветке.
+Клиентский мод для **Minecraft Fabric 1.19.2**. Версии для **1.20.1** и **1.21.4** — в отдельных репозиториях/ветках.
 
 Показывает объёмный красный **нимб** (кольцо-тор) над головой невидимых игроков — без силуэта, модели или контура самого игрока. Нимб отрисовывается как обычная 3D-геометрия с проверкой глубины, поэтому он **не виден сквозь стены** и корректно перекрывается блоками мира.
 
@@ -19,14 +19,14 @@
 
 ## Установка
 
-1. Установите [Fabric Loader](https://fabricmc.net/use/) для Minecraft 1.21.4.
+1. Установите [Fabric Loader](https://fabricmc.net/use/) для Minecraft 1.19.2.
 2. Установите [Fabric API](https://modrinth.com/mod/fabric-api) той же версии Minecraft.
 3. Скачайте `.jar` мода со страницы [Releases](../../releases) или из последнего успешного [Actions-билда](../../actions).
 4. Поместите файл в папку `mods` вашей игры.
 
 ## Сборка из исходников
 
-Требуется JDK 21+ и [Gradle](https://gradle.org/install/) 8.11+ (или запустите `gradle wrapper` один раз, чтобы сгенерировать `gradlew`/`gradlew.bat` для проекта).
+Требуется JDK 17+ и [Gradle](https://gradle.org/install/) 8.7+ (или запустите `gradle wrapper` один раз, чтобы сгенерировать `gradlew`/`gradlew.bat` для проекта).
 
 ```bash
 git clone https://github.com/1pirs/HolyinvisibleMod.git

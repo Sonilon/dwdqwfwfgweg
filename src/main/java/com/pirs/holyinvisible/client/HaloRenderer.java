@@ -1,27 +1,28 @@
 package com.pirs.holyinvisible.client;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.render.VertexConsumer;
-import net.minecraft.client.render.VertexConsumerProvider;
+import net.minecraft.client.render.BufferBuilder;
+import net.minecraft.client.render.BufferRenderer;
+import net.minecraft.client.render.Tessellator;
+import net.minecraft.client.render.VertexFormat;
+import net.minecraft.client.render.VertexFormats;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.client.network.AbstractClientPlayerEntity;
 import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.math.Matrix4f;
 import net.minecraft.util.math.Vec3d;
-import org.joml.Matrix4f;
+import net.minecraft.util.math.Vec3f;
 
 import java.util.List;
 
 /**
  * Рисует объёмный красный нимб (тор) над головой невидимых игроков.
  *
- * Рендер идёт через обычный VertexConsumerProvider с RenderLayer, который
- * сам управляет тестом глубины, поэтому нимб автоматически перекрывается
- * блоками (не виден сквозь стены) и при этом НЕ показывает силуэт/модель
- * самого игрока — только сам нимб. Этот способ не завязан на внутренние
- * шейдерные классы, которые Mojang неоднократно переименовывала между
- * версиями, поэтому он более устойчив к обновлениям игры.
+ * Рендер идёт как обычная 3D-геометрия с включённым тестом глубины,
+ * поэтому нимб автоматически перекрывается блоками (не виден сквозь стены)
+ * и при этом НЕ показывает силуэт/модель самого игрока — только сам нимб.
  */
 public final class HaloRenderer {
 
@@ -44,11 +45,6 @@ public final class HaloRenderer {
 			return;
 		}
 
-		VertexConsumerProvider consumers = context.consumers();
-		if (consumers == null) {
-			return;
-		}
-
 		List<AbstractClientPlayerEntity> players = client.world.getPlayers();
 		if (players.isEmpty()) {
 			return;
@@ -56,12 +52,19 @@ public final class HaloRenderer {
 
 		Vec3d cameraPos = context.camera().getPos();
 		MatrixStack matrices = context.matrixStack();
-		float tickDelta = context.tickCounter().getTickDelta(true);
+		float tickDelta = context.tickDelta();
 
 		// Лёгкая анимация: вращение и пульсация свечения по времени.
 		long time = client.world.getTime();
 		float rotation = (time + tickDelta) * 1.5f;
 		float pulse = 0.75f + 0.25f * MathHelper.sin((time + tickDelta) * 0.08f);
+
+		RenderSystem.enableBlend();
+		RenderSystem.defaultBlendFunc();
+		RenderSystem.enableDepthTest();
+		RenderSystem.depthMask(true);
+		RenderSystem.disableCull();
+		RenderSystem.setShader(net.minecraft.client.render.GameRenderer::getPositionColorShader);
 
 		for (AbstractClientPlayerEntity player : players) {
 			if (!shouldRenderHalo(player, client)) {
@@ -76,16 +79,15 @@ public final class HaloRenderer {
 
 			matrices.push();
 			matrices.translate(x, y + headHeight + HEIGHT_ABOVE_HEAD, z);
-			matrices.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_Y.rotationDegrees(rotation));
+			matrices.multiply(Vec3f.POSITIVE_Y.getDegreesQuaternion(rotation));
 
-			drawHalo(matrices, consumers, pulse);
+			drawHalo(matrices, pulse);
 
 			matrices.pop();
 		}
 
-		if (consumers instanceof VertexConsumerProvider.Immediate immediate) {
-			immediate.draw(RenderLayer.getDebugQuads());
-		}
+		RenderSystem.enableCull();
+		RenderSystem.disableBlend();
 	}
 
 	private static boolean shouldRenderHalo(AbstractClientPlayerEntity player, MinecraftClient client) {
@@ -100,31 +102,27 @@ public final class HaloRenderer {
 		return player.isInvisible();
 	}
 
-	private static void drawHalo(MatrixStack matrices, VertexConsumerProvider consumers, float pulse) {
+	private static void drawHalo(MatrixStack matrices, float pulse) {
+		Tessellator tessellator = Tessellator.getInstance();
+		BufferBuilder buffer = tessellator.getBuffer();
+
 		Matrix4f model = matrices.peek().getPositionMatrix();
-		VertexConsumer buffer = consumers.getBuffer(RenderLayer.getDebugQuads());
 
 		int glowAlpha = (int) (170 + 60 * pulse);
-		int glowCoreAlpha = (int) (90 * pulse);
 
-		// Мягкое красное свечение под нимбом (кольцо из вырожденных квадов,
-		// сходящихся к центру) - даёт объём и "ауру" без силуэта игрока.
-		for (int i = 0; i < SEGMENTS; i++) {
-			double angle1 = 2 * Math.PI * i / SEGMENTS;
-			double angle2 = 2 * Math.PI * (i + 1) / SEGMENTS;
-
-			float outerX1 = (float) (Math.cos(angle1) * RING_RADIUS * 1.6f);
-			float outerZ1 = (float) (Math.sin(angle1) * RING_RADIUS * 1.6f);
-			float outerX2 = (float) (Math.cos(angle2) * RING_RADIUS * 1.6f);
-			float outerZ2 = (float) (Math.sin(angle2) * RING_RADIUS * 1.6f);
-
-			buffer.vertex(model, 0f, 0.01f, 0f).color(255, 60, 40, glowCoreAlpha);
-			buffer.vertex(model, outerX1, 0.01f, outerZ1).color(255, 40, 30, 0);
-			buffer.vertex(model, outerX2, 0.01f, outerZ2).color(255, 40, 30, 0);
-			buffer.vertex(model, 0f, 0.01f, 0f).color(255, 60, 40, glowCoreAlpha);
+		// Мягкое красное свечение под нимбом (диск, тает к краям) - даёт объём и "ауру".
+		buffer.begin(VertexFormat.DrawMode.TRIANGLE_FAN, VertexFormats.POSITION_COLOR);
+		buffer.vertex(model, 0f, 0.01f, 0f).color(255, 60, 40, (int) (90 * pulse)).next();
+		for (int i = 0; i <= SEGMENTS; i++) {
+			double angle = 2 * Math.PI * i / SEGMENTS;
+			float px = (float) (Math.cos(angle) * RING_RADIUS * 1.6f);
+			float pz = (float) (Math.sin(angle) * RING_RADIUS * 1.6f);
+			buffer.vertex(model, px, 0.01f, pz).color(255, 40, 30, 0).next();
 		}
+		BufferRenderer.drawWithGlobalProgram(buffer.end());
 
 		// Сам нимб — объёмное красное кольцо (тор), идеально круглое сверху.
+		buffer.begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR);
 		for (int i = 0; i < SEGMENTS; i++) {
 			double theta1 = 2 * Math.PI * i / SEGMENTS;
 			double theta2 = 2 * Math.PI * (i + 1) / SEGMENTS;
@@ -139,9 +137,10 @@ public final class HaloRenderer {
 				addTorusVertex(buffer, model, theta1, phi2, glowAlpha);
 			}
 		}
+		BufferRenderer.drawWithGlobalProgram(buffer.end());
 	}
 
-	private static void addTorusVertex(VertexConsumer buffer, Matrix4f model, double theta, double phi, int alpha) {
+	private static void addTorusVertex(BufferBuilder buffer, Matrix4f model, double theta, double phi, int alpha) {
 		float cosPhi = (float) Math.cos(phi);
 		float sinPhi = (float) Math.sin(phi);
 		float cosTheta = (float) Math.cos(theta);
@@ -157,6 +156,6 @@ public final class HaloRenderer {
 		int g = (int) (35 + 90 * light);
 		int b = (int) (25 + 60 * light);
 
-		buffer.vertex(model, x, y, z).color(r, g, b, alpha);
+		buffer.vertex(model, x, y, z).color(r, g, b, alpha).next();
 	}
 }
